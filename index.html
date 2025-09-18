@@ -1,0 +1,1937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Tournament Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .timer-display {
+            font-size: clamp(4rem, 15vw, 11rem); /* Increased responsiveness */
+            line-height: 1;
+            font-variant-numeric: tabular-nums; /* Prevents timer jitter */
+            transition: color 0.5s ease-in-out; /* Smooth color transition */
+        }
+        .tabular-nums-text {
+            font-variant-numeric: tabular-nums; /* Prevents text timer jitter */
+        }
+        .control-btn, .player-btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .control-btn:active, .player-btn:active {
+            transform: scale(0.95);
+        }
+        .control-btn:disabled, .player-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        /* Ensure confirmation modal is on top */
+        .modal {
+            z-index: 60;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        /* Hide number input arrows */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield; /* Firefox */
+        }
+        /* Fullscreen scaling */
+        #main-container.is-fullscreen {
+             max-width: 100% !important;
+             height: 100vh;
+             padding: 2rem;
+             display: flex;
+             flex-direction: column;
+        }
+         #main-container.is-fullscreen > .grid {
+             flex-grow: 1;
+         }
+         /* Dropdown Menu */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            background-color: #374151; /* gray-700 */
+            min-width: 180px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 100;
+            border-radius: 0.5rem; /* rounded-lg */
+            padding: 0.5rem 0;
+        }
+        .dropdown-content button {
+            color: white;
+            padding: 0.75rem 1rem;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            font-size: 0.875rem; /* text-sm */
+        }
+        .dropdown-content button:hover {
+            background-color: #4B5563; /* gray-600 */
+        }
+        .dropdown-content .delete-action {
+            color: #F87171; /* red-400 */
+        }
+        .dropdown-content .delete-action:hover {
+            background-color: #991B1B; /* red-800 */
+            color: white;
+        }
+        .show {
+            display: block;
+        }
+        .btn-highlight {
+            color: #22d3ee; /* cyan-400 */
+            font-weight: 700;
+        }
+        /* Shuffle Animation */
+        .shuffling-item {
+            filter: blur(2px);
+            opacity: 0.7;
+            transition: all 0.05s ease-in-out;
+        }
+        .final-seat {
+            opacity: 0;
+            animation: fadeIn 0.5s ease-in-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white antialiased h-screen flex flex-col">
+
+    <div id="main-container" class="container mx-auto p-4 max-w-7xl flex flex-col flex-grow">
+        <!-- Header -->
+        <header class="relative flex justify-center items-center mb-4 shrink-0 h-10">
+             <h1 class="text-2xl md:text-3xl font-bold text-cyan-400 whitespace-nowrap">Poker Tournament Manager</h1>
+             <div class="absolute right-0 top-1/2 -translate-y-1/2 flex space-x-2">
+                <button id="player-toggle-btn" title="Players" class="bg-gray-700 hover:bg-gray-600 text-white font-bold p-2 rounded-lg control-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </button>
+                <button id="settings-toggle-btn" title="Settings" class="bg-gray-700 hover:bg-gray-600 text-white font-bold p-2 rounded-lg control-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                </button>
+                 <button id="mute-btn" title="Mute/Unmute" class="bg-gray-700 hover:bg-gray-600 text-white font-bold p-2 rounded-lg control-btn">
+                    <svg id="volume-on-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    <svg id="volume-off-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+                </button>
+                <button id="fullscreen-btn" title="Fullscreen" class="bg-gray-700 hover:bg-gray-600 text-white font-bold p-2 rounded-lg control-btn">
+                    <svg id="fullscreen-open-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                    <svg id="fullscreen-close-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+                </button>
+             </div>
+        </header>
+
+        <!-- Bubble Time Alert Modal -->
+        <div id="bubble-time-modal" class="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center modal hidden">
+            <h2 class="text-6xl md:text-8xl font-bold text-cyan-400 animate-pulse">Bubble Time</h2>
+        </div>
+
+        <!-- ITM Alert Modal -->
+        <div id="itm-modal" class="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center modal hidden">
+            <div class="text-center">
+                 <h2 class="text-5xl md:text-7xl font-bold text-green-400">Congratulations!</h2>
+                 <p class="text-3xl md:text-4xl text-white mt-4">You are In The Money! </p>
+            </div>
+        </div>
+        
+        <!-- Winner Alert Modal -->
+        <div id="winner-modal" class="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center modal hidden">
+             <button id="winner-modal-close-btn" class="absolute top-6 right-6 text-gray-400 hover:text-white control-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <div class="text-center">
+                 <h2 id="winner-message" class="text-5xl md:text-7xl font-bold text-yellow-400">Congratulations, Winner! </h2>
+            </div>
+        </div>
+
+        <!-- Simple Alert Modal -->
+         <div id="simple-alert-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center modal hidden">
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-xl w-11/12 max-w-sm text-center">
+                <p id="simple-alert-message" class="text-lg mb-6">Alert message</p>
+                <button id="simple-alert-ok-btn" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-8 rounded-lg control-btn">OK</button>
+            </div>
+        </div>
+
+        <!-- Confirmation Modal -->
+        <div id="confirmation-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center modal hidden">
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-xl w-11/12 max-w-lg text-center">
+                <p id="confirmation-message" class="text-lg mb-4">Are you sure?</p>
+                <div id="confirmation-details" class="mb-6 text-left"></div>
+                <div class="flex justify-center space-x-4">
+                    <button id="cancel-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg control-btn">Cancel</button>
+                    <button id="confirm-btn" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded-lg control-btn">Confirm</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Edit Player Name Modal -->
+        <div id="edit-player-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center modal hidden">
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-xl w-11/12 max-w-sm">
+                <h2 class="text-xl font-bold mb-4">Edit Player Name</h2>
+                <input type="text" id="edit-player-name-input" class="w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-cyan-500 focus:border-cyan-500 mb-4">
+                <div class="flex justify-end space-x-3">
+                    <button id="edit-player-cancel-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg control-btn">Cancel</button>
+                    <button id="edit-player-save-btn" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg control-btn">Save</button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden">
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-xl w-11/12 max-w-md">
+                <h2 class="text-2xl font-bold mb-4">Tournament Settings</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label for="buy-in" class="block text-sm font-medium text-gray-300">Buy-in</label>
+                        <input type="number" id="buy-in" value="400" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
+                    </div>
+                     <div>
+                        <label for="gtd" class="block text-sm font-medium text-gray-300">Guaranteed Prize Pool (GTD)</label>
+                        <input type="number" id="gtd" value="0" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label for="fee" class="block text-sm font-medium text-gray-300">Fee (%)</label>
+                        <input type="number" id="fee" value="10" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label for="starting-stack" class="block text-sm font-medium text-gray-300">Starting Stack</label>
+                        <input type="number" id="starting-stack" value="20000" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label for="on-time-bonus" class="block text-sm font-medium text-gray-300">On-Time Bonus</label>
+                        <input type="number" id="on-time-bonus" value="2000" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button id="settings-cancel-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg control-btn">Cancel</button>
+                    <button id="settings-save-btn" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg control-btn">Save</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Player Management Modal -->
+        <div id="player-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden">
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-xl w-11/12 max-w-xl flex flex-col h-[90vh]">
+                <h2 class="text-2xl font-bold mb-4 shrink-0">Players</h2>
+                <div id="player-management-content" class="flex-grow flex flex-col min-h-0">
+                    <div id="player-add-controls" class="flex gap-2 mb-3 shrink-0">
+                        <input type="text" id="player-name-input" placeholder="Player Name" class="flex-grow bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
+                        <button id="add-player-btn" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg control-btn">Add</button>
+                    </div>
+                    <div id="multi-bust-controls" class="hidden flex gap-2 mb-3 shrink-0">
+                         <button id="multi-bust-confirm-btn" class="flex-grow bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded-lg control-btn">Confirm Busts</button>
+                         <button id="multi-bust-cancel-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg control-btn">Cancel</button>
+                    </div>
+                    <div class="flex items-center mb-4 shrink-0">
+                        <input id="on-time-checkbox" type="checkbox" class="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 rounded focus:ring-cyan-500">
+                        <label for="on-time-checkbox" class="ml-2 text-sm font-medium text-gray-300">On-Time Bonus</label>
+                    </div>
+                    <div id="player-list" class="space-y-3 flex-grow overflow-y-auto pr-2">
+                        <!-- Player items will be injected here -->
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-between items-center shrink-0">
+                    <div class="flex gap-2">
+                        <button id="multi-bust-btn" class="bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg control-btn">Multiple Bust</button>
+                        <button id="random-seat-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg control-btn" disabled>Random Seat</button>
+                    </div>
+                    <button id="player-modal-close-btn" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg control-btn">Done</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Random Seat Modal -->
+        <div id="random-seat-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden">
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-xl w-11/12 max-w-lg flex flex-col h-[70vh]">
+                <div class="flex justify-between items-center mb-2 shrink-0">
+                    <h2 class="text-2xl font-bold">Random Seat Assignment</h2>
+                    <button id="random-seat-modal-close-btn" class="text-gray-400 hover:text-white control-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="flex justify-between items-baseline mb-4 shrink-0">
+                    <p id="seat-assignment-player-count" class="text-gray-400"></p>
+                    <p id="shuffle-progress" class="text-cyan-400 text-sm tabular-nums-text"></p>
+                </div>
+                <div id="seat-assignment-list" class="space-y-2 flex-grow overflow-y-auto pr-2 text-lg">
+                    <!-- Seat assignments will be injected here -->
+                </div>
+                <div class="mt-6 flex justify-end space-x-3 shrink-0">
+                    <button id="reshuffle-seats-btn" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg control-btn">Re-shuffle</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-grow min-h-0">
+
+            <!-- Left Column: Info -->
+            <div class="lg:col-span-1 bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col">
+                 <h2 class="text-xl font-bold text-center text-cyan-400 mb-4 pb-2 shrink-0 border-b border-gray-700">Tournament Info.</h2>
+                 <div id="tournament-info-list" class="flex-grow flex flex-col justify-around">
+                    <!-- Info items will be generated here -->
+                 </div>
+            </div>
+
+            <!-- Center Column: Clock -->
+            <div class="lg:col-span-2 bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col h-full">
+                <div id="clock-content-wrapper" class="flex-grow flex flex-col items-center min-h-0">
+                     <h2 id="current-level-display" class="text-xl font-bold text-center text-cyan-400 shrink-0">Level 1</h2>
+                    <!-- Blinds Display -->
+                    <p class="text-4xl md:text-5xl font-bold mt-2" id="current-blinds-display">100 / 100 BBA</p>
+                    
+                    <!-- Timer (takes up remaining space) -->
+                    <div class="text-center w-full my-auto flex items-center justify-center">
+                        <div class="timer-display font-bold text-white" id="timer-display">
+                            15:00
+                        </div>
+                    </div>
+
+                    <!-- Bottom Group -->
+                    <div class="text-center w-full shrink-0">
+                         <div class="mb-4">
+                            <span class="text-gray-400">Next Blinds</span>
+                            <p class="text-xl md:text-2xl text-gray-400 tabular-nums-text" id="next-blinds-display">100 / 200</p>
+                        </div>
+                        <!-- Time Controls -->
+                        <div id="time-controls-container" class="flex items-center justify-center gap-2 md:gap-3 w-full flex-wrap border-t border-gray-700 pt-4">
+                            <button id="start-btn" class="control-btn bg-emerald-500 hover:bg-emerald-600 text-white font-bold h-[52px] py-3 px-10 rounded-lg text-2xl">Start</button>
+                            
+                            <div id="running-controls" class="hidden items-center justify-center gap-2 md:gap-3 w-full flex-wrap">
+                                <button id="prev-level-btn" title="Previous Level" class="control-btn bg-gray-700 hover:bg-gray-600 text-white font-bold h-[52px] w-[68px] flex items-center justify-center rounded-lg">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>
+                                </button>
+                                <button id="forward-btn" class="control-btn bg-gray-700 hover:bg-gray-600 text-white font-bold h-[52px] w-[68px] flex items-center justify-center rounded-lg">+60s</button>
+                                
+                                <button id="pause-btn" class="control-btn bg-yellow-500 hover:bg-yellow-600 text-white font-bold p-3 rounded-lg h-[52px] w-[52px] flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 19c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2s-2 .9-2 2v10c0 1.1.9 2 2 2zm6-12v10c0 1.1.9 2 2 2s2-.9 2-2V7c0-1.1-.9-2-2-2s-2 .9-2 2z"/></svg>
+                                </button>
+                                <button id="resume-btn" class="control-btn bg-emerald-500 hover:bg-emerald-600 text-white font-bold p-3 rounded-lg h-[52px] w-[52px] hidden items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18c.62-.39.62-1.29 0-1.69L9.54 5.98C8.87 5.55 8 6.03 8 6.82z"/></svg>
+                                </button>
+
+                                <button id="rewind-btn" class="control-btn bg-gray-700 hover:bg-gray-600 text-white font-bold h-[52px] w-[68px] flex items-center justify-center rounded-lg">-60s</button>
+                                <button id="next-level-btn" title="Next Level" class="control-btn bg-gray-700 hover:bg-gray-600 text-white font-bold h-[52px] w-[68px] flex items-center justify-center rounded-lg">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: Payouts -->
+            <div class="lg:col-span-1 bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col">
+                <h2 class="text-xl font-bold text-center text-cyan-400 mb-3 pb-2 border-b border-gray-700">Prize Pool & Payouts</h2>
+                <div id="prize-pool-container" class="text-center mb-4">
+                    <span class="text-gray-400 text-sm">Total Prize Pool</span>
+                    <p id="prize-pool-display" class="text-3xl font-bold text-yellow-400">0</p>
+                </div>
+                <div id="payout-list" class="space-y-2">
+                    <!-- Payout structure will be injected here -->
+                </div>
+            </div>
+        </div>
+        <footer class="text-center py-2 shrink-0">
+             <span id="elapsed-time-display" class="text-gray-500 text-sm tabular-nums-text">Elapsed: 00:00:00</span>
+        </footer>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- STATE MANAGEMENT ---
+    let settings = {
+        buyIn: 400,
+        fee: 10,
+        startingStack: 20000,
+        onTimeBonus: 2000,
+        levelDuration: 15 * 60, // 15 minutes in seconds
+        gtd: 0,
+    };
+
+    const BREAK_LEVELS = [
+        { level: 5, duration: 10 * 60 },
+        { level: 10, duration: 20 * 60 },
+        { level: 15, duration: 10 * 60 },
+        { level: 20, duration: 10 * 60 },
+        { level: 25, duration: 10 * 60 },
+    ];
+
+    const blindLevels = [
+        { level: 1, sb: 100, bb: 100, ante: 100 }, { level: 2, sb: 100, bb: 200, ante: 200 },
+        { level: 3, sb: 100, bb: 300, ante: 300 }, { level: 4, sb: 200, bb: 400, ante: 400 },
+        { level: 5, sb: 200, bb: 500, ante: 500 }, { level: 6, sb: 300, bb: 600, ante: 600 },
+        { level: 7, sb: 400, bb: 800, ante: 800 }, { level: 8, sb: 500, bb: 1000, ante: 1000 },
+        { level: 9, sb: 600, bb: 1200, ante: 1200 }, { level: 10, sb: 1000, bb: 1500, ante: 1500 },
+        { level: 11, sb: 1000, bb: 2000, ante: 2000 }, { level: 12, sb: 1500, bb: 3000, ante: 3000 },
+        { level: 13, sb: 2000, bb: 4000, ante: 4000 }, { level: 14, sb: 2500, bb: 5000, ante: 5000 },
+        { level: 15, sb: 3000, bb: 6000, ante: 6000 }, { level: 16, sb: 4000, bb: 8000, ante: 8000 },
+        { level: 17, sb: 5000, bb: 10000, ante: 10000 }, { level: 18, sb: 6000, bb: 12000, ante: 12000 },
+        { level: 19, sb: 8000, bb: 16000, ante: 16000 }, { level: 20, sb: 10000, bb: 20000, ante: 20000 },
+        { level: 21, sb: 15000, bb: 25000, ante: 25000 }, { level: 22, sb: 15000, bb: 30000, ante: 30000 },
+        { level: 23, sb: 20000, bb: 30000, ante: 30000 }, { level: 24, sb: 30000, bb: 60000, ante: 60000 },
+        { level: 25, sb: 40000, bb: 80000, ante: 80000 }, { level: 26, sb: 50000, bb: 100000, ante: 100000 },
+    ];
+
+    let players = [];
+    let tournamentState = {
+        currentLevelIndex: 0,
+        timeLeftInLevel: settings.levelDuration,
+        isPaused: true,
+        isTournamentStarted: false,
+        timerInterval: null,
+        isBreak: false,
+        totalEntries: 0,
+        totalBonusChips: 0,
+        reEntries: 0,
+        addOns: 0,
+        totalElapsedTime: 0,
+        elapsedTimerInterval: null,
+        isDealActive: false,
+        hasDealBeenOffered: false,
+        isBubbleDealPending: false,
+        hasAnnouncedITM: false,
+        isITMAnnouncementPending: false,
+        wasPausedBeforeModal: null,
+        isWinnerPendingConfirmation: false,
+        isMultiBustMode: false,
+        multiBustSelection: [],
+        bubbleProtectionPayouts: 0,
+        bubbleProtectionWinners: [],
+        editingPlayerId: null,
+        overlay: 0,
+        shuffleAnimationInterval: null,
+        isMuted: false,
+        infoDisplayInterval: null,
+        isShowingStartingStack: true,
+    };
+
+    // --- AUDIO CONTEXT for SOUNDS ---
+    let audioCtx;
+    const initAudio = () => {
+        if (!audioCtx) {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {
+                console.error("Web Audio API is not supported in this browser");
+            }
+        }
+    };
+    const playBeep = (count = 1) => {
+        if (!audioCtx || tournamentState.isMuted) return;
+        
+        for (let i = 0; i < count; i++) {
+            setTimeout(() => {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+                gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.1);
+            }, i * 150); // Stagger beeps for double beep
+        }
+    };
+    const playChime = () => {
+        if (!audioCtx || tournamentState.isMuted) return;
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime); // High pitch
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.2);
+    };
+    const playShuffleSound = () => {
+        if (!audioCtx || tournamentState.isMuted) return null;
+        const bufferSize = audioCtx.sampleRate * 0.1; // 100ms
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+
+        const whiteNoise = audioCtx.createBufferSource();
+        whiteNoise.buffer = buffer;
+
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.setValueAtTime(0.03, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+
+        whiteNoise.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        whiteNoise.start();
+        return whiteNoise;
+    };
+
+
+    // --- DOM ELEMENTS ---
+    const dom = {
+        mainContainer: document.getElementById('main-container'),
+        settingsToggleBtn: document.getElementById('settings-toggle-btn'),
+        settingsModal: document.getElementById('settings-modal'),
+        settingsSaveBtn: document.getElementById('settings-save-btn'),
+        settingsCancelBtn: document.getElementById('settings-cancel-btn'),
+        playerToggleBtn: document.getElementById('player-toggle-btn'),
+        playerModal: document.getElementById('player-modal'),
+        playerModalCloseBtn: document.getElementById('player-modal-close-btn'),
+        bubbleTimeModal: document.getElementById('bubble-time-modal'),
+        itmModal: document.getElementById('itm-modal'),
+        winnerModal: document.getElementById('winner-modal'),
+        winnerMessage: document.getElementById('winner-message'),
+        winnerModalCloseBtn: document.getElementById('winner-modal-close-btn'),
+        simpleAlertModal: document.getElementById('simple-alert-modal'),
+        simpleAlertMessage: document.getElementById('simple-alert-message'),
+        simpleAlertOkBtn: document.getElementById('simple-alert-ok-btn'),
+        confirmationModal: document.getElementById('confirmation-modal'),
+        confirmationMessage: document.getElementById('confirmation-message'),
+        confirmationDetails: document.getElementById('confirmation-details'),
+        confirmBtn: document.getElementById('confirm-btn'),
+        cancelBtn: document.getElementById('cancel-btn'),
+        editPlayerModal: document.getElementById('edit-player-modal'),
+        editPlayerNameInput: document.getElementById('edit-player-name-input'),
+        editPlayerSaveBtn: document.getElementById('edit-player-save-btn'),
+        editPlayerCancelBtn: document.getElementById('edit-player-cancel-btn'),
+        buyInInput: document.getElementById('buy-in'),
+        feeInput: document.getElementById('fee'),
+        gtdInput: document.getElementById('gtd'),
+        startingStackInput: document.getElementById('starting-stack'),
+        onTimeBonusInput: document.getElementById('on-time-bonus'),
+        playerNameInput: document.getElementById('player-name-input'),
+        addPlayerBtn: document.getElementById('add-player-btn'),
+        onTimeCheckbox: document.getElementById('on-time-checkbox'),
+        playerList: document.getElementById('player-list'),
+        prizePoolDisplay: document.getElementById('prize-pool-display'),
+        prizePoolContainer: document.getElementById('prize-pool-container'),
+        payoutList: document.getElementById('payout-list'),
+        currentLevelDisplay: document.getElementById('current-level-display'),
+        timerDisplay: document.getElementById('timer-display'),
+        currentBlindsDisplay: document.getElementById('current-blinds-display'),
+        nextBlindsDisplay: document.getElementById('next-blinds-display'),
+        startBtn: document.getElementById('start-btn'),
+        runningControls: document.getElementById('running-controls'),
+        prevLevelBtn: document.getElementById('prev-level-btn'),
+        rewindBtn: document.getElementById('rewind-btn'),
+        pauseBtn: document.getElementById('pause-btn'),
+        resumeBtn: document.getElementById('resume-btn'),
+        forwardBtn: document.getElementById('forward-btn'),
+        nextLevelBtn: document.getElementById('next-level-btn'),
+        tournamentInfoList: document.getElementById('tournament-info-list'),
+        fullscreenBtn: document.getElementById('fullscreen-btn'),
+        fullscreenOpenIcon: document.getElementById('fullscreen-open-icon'),
+        fullscreenCloseIcon: document.getElementById('fullscreen-close-icon'),
+        elapsedTimeDisplay: document.getElementById('elapsed-time-display'),
+        multiBustBtn: document.getElementById('multi-bust-btn'),
+        multiBustControls: document.getElementById('multi-bust-controls'),
+        multiBustConfirmBtn: document.getElementById('multi-bust-confirm-btn'),
+        multiBustCancelBtn: document.getElementById('multi-bust-cancel-btn'),
+        playerAddControls: document.getElementById('player-add-controls'),
+        randomSeatBtn: document.getElementById('random-seat-btn'),
+        randomSeatModal: document.getElementById('random-seat-modal'),
+        randomSeatModalCloseBtn: document.getElementById('random-seat-modal-close-btn'),
+        seatAssignmentList: document.getElementById('seat-assignment-list'),
+        seatAssignmentPlayerCount: document.getElementById('seat-assignment-player-count'),
+        shuffleProgress: document.getElementById('shuffle-progress'),
+        reshuffleSeatsBtn: document.getElementById('reshuffle-seats-btn'),
+        muteBtn: document.getElementById('mute-btn'),
+        volumeOnIcon: document.getElementById('volume-on-icon'),
+        volumeOffIcon: document.getElementById('volume-off-icon'),
+    };
+
+    // --- HELPER FUNCTIONS ---
+
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
+
+    const formatNumber = (num) => new Intl.NumberFormat('en-US').format(num);
+
+    const getOrdinalSuffix = (n) => {
+        const s = ["th", "st", "nd", "rd"];
+        const v = n % 100;
+        return n + (s[(v - 20) % 10] || s[v] || s[0]);
+    }
+    
+    const shuffleArray = (array) => {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    };
+
+    const getPayoutStructure = () => {
+        if (tournamentState.totalEntries > 0) {
+            if (tournamentState.totalEntries <= 7) {
+                return [{ rank: 1, percent: 0.7 }, { rank: 2, percent: 0.3 }];
+            } else if (tournamentState.totalEntries <= 11) {
+                return [{ rank: 1, percent: 0.5 }, { rank: 2, percent: 0.3 }, { rank: 3, percent: 0.2 }];
+            } else {
+                return [{ rank: 1, percent: 0.5 }, { rank: 2, percent: 0.25 }, { rank: 3, percent: 0.15 }, { rank: 4, percent: 0.10 }];
+            }
+        }
+        return [];
+    };
+
+    const updateAllUI = () => {
+        renderPlayers();
+        renderBlinds();
+        renderStats();
+        renderPayouts();
+        renderTimer();
+    };
+    
+    // --- RENDER FUNCTIONS ---
+    
+    const renderTimer = () => {
+        dom.timerDisplay.textContent = formatTime(tournamentState.timeLeftInLevel);
+    };
+
+    const updateTimerVisuals = () => {
+        const timerEl = dom.timerDisplay;
+        const time = tournamentState.timeLeftInLevel;
+        
+        // Tailwind classes for colors
+        const colors = {
+            white: 'text-white',
+            yellow: 'text-yellow-400',
+            orange: 'text-orange-500',
+            red: 'text-red-500'
+        };
+
+        // Remove all color classes before adding the new one
+        Object.values(colors).forEach(colorClass => timerEl.classList.remove(colorClass));
+        timerEl.classList.remove('animate-pulse');
+
+        if (tournamentState.isPaused || !tournamentState.isTournamentStarted) {
+            timerEl.classList.add(colors.white);
+            return;
+        }
+
+        if (tournamentState.isBreak) {
+             timerEl.classList.add(colors.yellow);
+             return;
+        }
+        
+        // Timer warning stages
+        if (time <= 10) {
+            timerEl.classList.add(colors.red, 'animate-pulse');
+            playBeep(1);
+        } else if (time <= 30) {
+            timerEl.classList.add(colors.red);
+            if (time === 30) playBeep(2);
+        } else if (time <= 60) {
+            timerEl.classList.add(colors.orange);
+            if (time === 60) playBeep(1);
+        } else if (time <= 120) {
+            timerEl.classList.add(colors.yellow);
+        } else {
+            timerEl.classList.add(colors.white);
+        }
+    };
+
+    const renderBlinds = () => {
+        const currentLevel = blindLevels[tournamentState.currentLevelIndex];
+        const nextLevel = blindLevels[tournamentState.currentLevelIndex + 1];
+
+        const formatBlindValue = (value, level) => {
+            if (level >= 20 && value >= 1000) {
+                return `${value / 1000}K`;
+            }
+            return formatNumber(value);
+        };
+        
+        if (tournamentState.isBreak) {
+            dom.currentLevelDisplay.textContent = `BREAK TIME`;
+            dom.currentBlindsDisplay.textContent = `Resuming Soon`;
+            if(nextLevel) {
+                 dom.nextBlindsDisplay.textContent = `${formatBlindValue(nextLevel.sb, nextLevel.level)} / ${formatBlindValue(nextLevel.bb, nextLevel.level)} BBA (${formatTime(settings.levelDuration)})`;
+            } else {
+                 dom.nextBlindsDisplay.textContent = 'Tournament Complete';
+            }
+        } else {
+            dom.currentLevelDisplay.textContent = `Level ${currentLevel.level}`;
+            dom.currentBlindsDisplay.textContent = `${formatBlindValue(currentLevel.sb, currentLevel.level)} / ${formatBlindValue(currentLevel.bb, currentLevel.level)} BBA`;
+
+            if (nextLevel) {
+                const isBreakAfterCurrent = BREAK_LEVELS.some(b => b.level === currentLevel.level);
+                if (isBreakAfterCurrent) {
+                    const breakInfo = BREAK_LEVELS.find(b => b.level === currentLevel.level);
+                    dom.nextBlindsDisplay.textContent = `Next: ${breakInfo.duration / 60} min Break`;
+                } else {
+                     dom.nextBlindsDisplay.textContent = `${formatBlindValue(nextLevel.sb, nextLevel.level)} / ${formatBlindValue(nextLevel.bb, nextLevel.level)} BBA (${formatTime(settings.levelDuration)})`;
+                }
+            } else {
+                dom.nextBlindsDisplay.textContent = 'Last Level';
+            }
+        }
+    };
+    
+    const renderPlayers = () => {
+        dom.playerList.innerHTML = '';
+        const activePlayersCount = players.filter(p => !p.isEliminated).length;
+        dom.randomSeatBtn.disabled = activePlayersCount === 0;
+
+        const eliminatedPlayers = players.filter(p => p.eliminationOrder > 0);
+        const totalUniquePlayersCount = new Set(players.map(p => p.name)).size;
+        let playerRanks = {}; // { playerId: "10th", playerId2: "T-9th" }
+
+        if (eliminatedPlayers.length > 0) {
+            const groupedByOrder = eliminatedPlayers.reduce((acc, p) => {
+                acc[p.eliminationOrder] = acc[p.eliminationOrder] || [];
+                acc[p.eliminationOrder].push(p);
+                return acc;
+            }, {});
+
+            const sortedOrders = Object.keys(groupedByOrder).map(Number).sort((a, b) => a - b); 
+
+            let rankCursor = totalUniquePlayersCount;
+            sortedOrders.forEach(order => {
+                const group = groupedByOrder[order];
+                const isTied = group.length > 1;
+                const rankText = isTied ? `T-${getOrdinalSuffix(rankCursor)}` : getOrdinalSuffix(rankCursor);
+                
+                group.forEach(p => {
+                    playerRanks[p.id] = rankText;
+                });
+
+                rankCursor -= group.length;
+            });
+        }
+        
+        const sortedPlayers = [...players].sort((a, b) => {
+            if (a.isEliminated && !b.isEliminated) return 1;
+            if (!a.isEliminated && b.isEliminated) return -1;
+            if (a.isEliminated && b.isEliminated) {
+                return b.eliminationOrder - a.eliminationOrder;
+            }
+            return 0; 
+        });
+        
+        sortedPlayers.forEach(player => {
+            const playerDiv = document.createElement('div');
+            playerDiv.className = `player-row flex items-center justify-between p-3 rounded-lg bg-gray-700/50 text-gray-400`;
+            if(!player.isEliminated) {
+                playerDiv.classList.remove('bg-gray-700/50', 'text-gray-400');
+                playerDiv.classList.add('bg-gray-700');
+            }
+
+            let rankDisplay = '';
+            if (player.isEliminated && playerRanks[player.id]) {
+                rankDisplay = `<span class="font-bold text-cyan-400 w-16 shrink-0 text-center">${playerRanks[player.id]}</span>`;
+            }
+            
+            let onTimeIcon = '';
+            if(player.isOnTime) {
+                onTimeIcon = `<svg title="On-Time Bonus" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-400"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+            }
+            
+            let bubbleProtectionIcon = '';
+            if (player.wasAwardedBubbleProtection) {
+                const isActive = player.hasBubbleProtection && !player.isEliminated;
+                bubbleProtectionIcon = `<svg title="Bubble Protection ${isActive ? '' : '(Void)'}" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${isActive ? 'text-green-400' : 'text-gray-600'}"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`;
+            }
+
+            const addOnIcon = player.hasAddOn ? `<svg title="Add-on" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-purple-400"><path d="M12 5v14"/><path d="M5 12h14"/></svg>` : '';
+            
+            let actionsHtml = '';
+            let kebabMenuHtml = `
+                <div class="dropdown">
+                    <button class="more-options-btn player-btn p-2 rounded-md text-gray-400 hover:bg-gray-600 hover:text-white" data-id="${player.id}">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                    </button>
+                    <div id="dropdown-${player.id}" class="dropdown-content">
+                        <button data-id="${player.id}" class="edit-btn player-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                            Edit Name
+                        </button>
+            `;
+
+            if(player.isEliminated) {
+                 kebabMenuHtml += `
+                    <button data-id="${player.id}" class="delete-btn player-btn delete-action">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                        Delete Player
+                    </button>
+                 `;
+            } else {
+                kebabMenuHtml += `
+                    <button data-id="${player.id}" class="add-on-btn player-btn" ${player.hasAddOn ? 'disabled' : ''}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                        Add-on
+                    </button>
+                    <button data-id="${player.id}" class="bubble-protection-btn player-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${player.hasBubbleProtection ? 'text-green-400' : ''}"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        ${player.hasBubbleProtection ? 'Remove' : 'Add'} Protection
+                    </button>
+                    <button data-id="${player.id}" class="delete-btn player-btn delete-action">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                        Delete Player
+                    </button>
+                `;
+            }
+             kebabMenuHtml += `</div></div>`;
+
+
+            if (tournamentState.isMultiBustMode) {
+                 // No actions in multi-bust mode, only checkboxes
+            } else if (player.isEliminated) {
+                actionsHtml = `
+                    <button data-id="${player.id}" class="re-entry-btn player-btn bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-2 px-3 rounded w-24">Re-entry</button>
+                    ${kebabMenuHtml}
+                `;
+            } else {
+                actionsHtml = `
+                    <button data-id="${player.id}" class="bust-btn player-btn bg-red-600 hover:bg-red-500 text-white text-sm font-bold py-2 px-3 rounded w-24">Bust</button>
+                    ${kebabMenuHtml}
+                `;
+            }
+
+            playerDiv.innerHTML = `
+                <div class="flex-1 min-w-0 flex items-center gap-2">
+                    <div class="multi-bust-checkbox-container ${tournamentState.isMultiBustMode && !player.isEliminated ? 'block' : 'hidden'} w-6">
+                        <input type="checkbox" data-id="${player.id}" class="multi-bust-checkbox w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 rounded focus:ring-cyan-500" ${tournamentState.multiBustSelection.includes(player.id) ? 'checked' : ''}>
+                    </div>
+                    ${rankDisplay}
+                    <p class="font-semibold truncate" title="${player.name} (${player.entries})">${player.name} (${player.entries})</p>
+                </div>
+                <div class="player-actions-container flex items-center gap-2 pl-4 ${tournamentState.isMultiBustMode ? 'hidden' : ''}">
+                    <div class="flex items-center gap-2 text-sm">
+                        ${onTimeIcon}
+                        ${bubbleProtectionIcon}
+                        ${addOnIcon}
+                    </div>
+                    ${actionsHtml}
+                </div>
+            `;
+            dom.playerList.appendChild(playerDiv);
+        });
+    };
+    
+    const updateAlternatingInfo = () => {
+        const lateRegEndsAtLevel = 8;
+        const currentLevelNumber = blindLevels[tournamentState.currentLevelIndex].level;
+        const currentBB = blindLevels[tournamentState.currentLevelIndex].bb;
+
+        // Create the elements if they don't exist
+        if (!document.getElementById('alternating-info-container')) {
+            const container = document.createElement('div');
+            container.id = 'alternating-info-container';
+
+            container.innerHTML = `
+                <div class="text-center relative h-16"> <!-- Reduced height -->
+                    <div id="starting-stack-display" class="absolute inset-0 flex flex-col justify-center items-center transition-opacity duration-500 opacity-0">
+                        <span class="text-gray-400 text-sm uppercase tracking-wider">Starting Stack</span>
+                        <p class="font-semibold text-xl" data-value="stack"></p>
+                        <p class="text-cyan-400 text-base" data-value="bbs"></p>
+                    </div>
+                    <div id="chips-in-play-display" class="absolute inset-0 flex flex-col justify-center items-center transition-opacity duration-500 opacity-0">
+                        <span class="text-gray-400 text-sm uppercase tracking-wider">Chips In Play</span>
+                        <p class="font-semibold text-xl" data-value="stack"></p>
+                        <p class="text-cyan-400 text-base" data-value="bbs"></p>
+                    </div>
+                </div>
+            `;
+            const averageStackElement = dom.tournamentInfoList.children[2]; // Target the original Chips in Play spot
+            averageStackElement.replaceWith(container);
+        }
+
+        const ssDisplay = document.getElementById('starting-stack-display');
+        const cipDisplay = document.getElementById('chips-in-play-display');
+
+        // Populate values
+        const startingStackBBs = currentBB > 0 ? (settings.startingStack / currentBB).toFixed(1) : "0.0";
+        ssDisplay.querySelector('[data-value="stack"]').textContent = formatNumber(settings.startingStack);
+        ssDisplay.querySelector('[data-value="bbs"]').textContent = `${startingStackBBs} BBs`;
+        
+        const totalChips = (tournamentState.totalEntries * settings.startingStack) + tournamentState.totalBonusChips;
+        const totalChipsBBs = currentBB > 0 ? (totalChips / currentBB).toFixed(1) : "0.0";
+        cipDisplay.querySelector('[data-value="stack"]').textContent = formatNumber(totalChips);
+        cipDisplay.querySelector('[data-value="bbs"]').textContent = `${totalChipsBBs} BBs`;
+
+        // Control visibility and interval
+        if (tournamentState.isTournamentStarted && currentLevelNumber <= lateRegEndsAtLevel) {
+            if (!tournamentState.infoDisplayInterval) {
+                 // Initial state before interval starts
+                ssDisplay.classList.add('opacity-100');
+                cipDisplay.classList.remove('opacity-100');
+                tournamentState.isShowingStartingStack = true;
+
+                tournamentState.infoDisplayInterval = setInterval(() => {
+                    tournamentState.isShowingStartingStack = !tournamentState.isShowingStartingStack;
+                    updateAlternatingInfo();
+                }, 5000);
+            }
+
+            if (tournamentState.isShowingStartingStack) {
+                ssDisplay.classList.add('opacity-100');
+                ssDisplay.classList.remove('opacity-0');
+                cipDisplay.classList.remove('opacity-100');
+                cipDisplay.classList.add('opacity-0');
+            } else {
+                ssDisplay.classList.remove('opacity-100');
+                ssDisplay.classList.add('opacity-0');
+                cipDisplay.classList.add('opacity-100');
+                cipDisplay.classList.remove('opacity-0');
+            }
+        } else {
+            // Stop alternating
+            if (tournamentState.infoDisplayInterval) {
+                clearInterval(tournamentState.infoDisplayInterval);
+                tournamentState.infoDisplayInterval = null;
+            }
+            // Show Starting Stack if not started, otherwise show Chips in Play
+            if (!tournamentState.isTournamentStarted) {
+                ssDisplay.classList.add('opacity-100');
+                ssDisplay.classList.remove('opacity-0');
+                cipDisplay.classList.remove('opacity-100');
+                cipDisplay.classList.add('opacity-0');
+            } else {
+                ssDisplay.classList.remove('opacity-100');
+                 ssDisplay.classList.add('opacity-0');
+                cipDisplay.classList.add('opacity-100');
+                 cipDisplay.classList.remove('opacity-0');
+            }
+        }
+    };
+
+    const renderStats = () => {
+        let activePlayersCount = players.filter(p => !p.isEliminated).length;
+        const totalChips = (tournamentState.totalEntries * settings.startingStack) + tournamentState.totalBonusChips;
+
+        if (activePlayersCount === 0 && players.length > 0 && tournamentState.isTournamentStarted) {
+             activePlayersCount = 1;
+        }
+
+        const averageStack = activePlayersCount > 0 ? Math.round(totalChips / activePlayersCount) : 0;
+        const currentBB = blindLevels[tournamentState.currentLevelIndex].bb;
+
+        const averageStackInBB = currentBB > 0 ? (averageStack / currentBB).toFixed(1) : "0.0";
+        
+        const elapsedHours = Math.floor(tournamentState.totalElapsedTime / 3600);
+        const elapsedMins = Math.floor((tournamentState.totalElapsedTime % 3600) / 60);
+        const elapsedSecs = tournamentState.totalElapsedTime % 60;
+        const formattedElapsedTime = `${String(elapsedHours).padStart(2, '0')}:${String(elapsedMins).padStart(2, '0')}:${String(elapsedSecs).padStart(2, '0')}`;
+        dom.elapsedTimeDisplay.textContent = `Elapsed: ${formattedElapsedTime}`;
+
+        const lateRegEndsAtLevel = 8;
+        const currentLevelNumberForLateReg = blindLevels[tournamentState.currentLevelIndex].level;
+        let lateRegHtml = '';
+
+        if (!tournamentState.isTournamentStarted) {
+             lateRegHtml = `<div class="text-center"><span class="text-gray-400 text-sm uppercase tracking-wider">LATE REG.</span><p class="font-semibold text-xl tabular-nums-text">Level ${lateRegEndsAtLevel}</p></div>`;
+        }
+        else if (currentLevelNumberForLateReg > lateRegEndsAtLevel || (currentLevelNumberForLateReg === lateRegEndsAtLevel && tournamentState.timeLeftInLevel === 0)) {
+            lateRegHtml = `<div class="text-center"><span class="text-gray-400 text-sm uppercase tracking-wider">LATE REG.</span><p class="font-semibold text-xl tabular-nums-text text-red-400">CLOSED</p></div>`;
+        } else {
+            const levelsRemaining = lateRegEndsAtLevel - currentLevelNumberForLateReg;
+            const timeRemainingInSeconds = (levelsRemaining * settings.levelDuration) + tournamentState.timeLeftInLevel;
+            const lateRegHours = Math.floor(timeRemainingInSeconds / 3600);
+            const lateRegMins = Math.floor((timeRemainingInSeconds % 3600) / 60);
+            const lateRegSecs = timeRemainingInSeconds % 60;
+            const formattedLateRegTime = `${String(lateRegHours).padStart(2, '0')}:${String(lateRegMins).padStart(2, '0')}:${String(lateRegSecs).padStart(2, '0')}`;
+            lateRegHtml = `<div class="text-center"><span class="text-gray-400 text-sm uppercase tracking-wider">LATE REG.</span><p class="font-semibold text-xl tabular-nums-text">${formattedLateRegTime}</p></div>`;
+        }
+
+        let nextBreakHtml = '<div class="text-center">';
+        const currentLevelNumber = tournamentState.isTournamentStarted ? blindLevels[tournamentState.currentLevelIndex].level : 0;
+        const nextBreak = BREAK_LEVELS.find(b => b.level > currentLevelNumber);
+
+        if (tournamentState.isBreak) {
+            nextBreakHtml += '<span class="text-gray-400 text-sm uppercase tracking-wider">ON BREAK</span>';
+            nextBreakHtml += `<p class="font-semibold text-xl tabular-nums-text text-yellow-400">${formatTime(tournamentState.timeLeftInLevel)}</p>`;
+        } else if (nextBreak) {
+            nextBreakHtml += '<span class="text-gray-400 text-sm uppercase tracking-wider">NEXT BREAK</span>';
+            let timeUntilBreak;
+
+            if (tournamentState.isTournamentStarted) {
+                 const isBreakAfterCurrentLevel = BREAK_LEVELS.some(b => b.level === currentLevelNumber);
+                 if (isBreakAfterCurrentLevel) {
+                    timeUntilBreak = tournamentState.timeLeftInLevel;
+                 } else {
+                    const nextBreakLevelIndex = blindLevels.findIndex(l => l.level === nextBreak.level);
+                    const levelsToNextBreak = nextBreakLevelIndex - tournamentState.currentLevelIndex;
+                    timeUntilBreak = (levelsToNextBreak * settings.levelDuration) + tournamentState.timeLeftInLevel;
+                 }
+            } else {
+                timeUntilBreak = (BREAK_LEVELS[0].level) * settings.levelDuration;
+            }
+            
+            const hours = Math.floor(timeUntilBreak / 3600);
+            const mins = Math.floor((timeUntilBreak % 3600) / 60);
+            const secs = timeUntilBreak % 60;
+            const formattedTimeUntilBreak = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            
+            nextBreakHtml += `<p class="font-semibold text-xl tabular-nums-text">${formattedTimeUntilBreak}</p>`;
+        } else {
+            nextBreakHtml += '<span class="text-gray-400 text-sm uppercase tracking-wider">NEXT BREAK</span>';
+            nextBreakHtml += `<p class="font-semibold text-xl tabular-nums-text">NO MORE BREAKS</p>`;
+        }
+        nextBreakHtml += '</div>';
+        
+        const originalHTML = `
+            <div class="text-center">
+                <span class="text-gray-400 text-sm uppercase tracking-wider">Players Left</span>
+                <p class="font-semibold text-xl">${activePlayersCount} / ${tournamentState.totalEntries}</p>
+            </div>
+            <div class="text-center">
+                <span class="text-gray-400 text-sm uppercase tracking-wider">Re-entries / Add-ons</span>
+                <p class="font-semibold text-xl">${tournamentState.reEntries} / ${tournamentState.addOns}</p>
+            </div>
+            <div id="placeholder-for-alternating-info"></div>
+            <div class="text-center">
+                <span class="text-gray-400 text-sm uppercase tracking-wider">Average Stack</span>
+                <p class="font-semibold text-xl">${formatNumber(averageStack)}</p>
+                <p class="text-cyan-400 text-base">${averageStackInBB} BBs</p>
+            </div>
+            ${lateRegHtml}
+            ${nextBreakHtml}
+        `;
+        dom.tournamentInfoList.innerHTML = originalHTML;
+        updateAlternatingInfo();
+    };
+
+    const renderPayouts = () => {
+        const totalBuyInPrize = (tournamentState.totalEntries * settings.buyIn) * (1 - settings.fee / 100);
+        let prizePoolForDisplay = totalBuyInPrize;
+        
+        if (settings.gtd > 0 && settings.gtd > totalBuyInPrize) {
+            tournamentState.overlay = settings.gtd - totalBuyInPrize;
+            prizePoolForDisplay = settings.gtd;
+        } else {
+            tournamentState.overlay = 0;
+        }
+        
+        const prizePoolForCalc = prizePoolForDisplay - tournamentState.bubbleProtectionPayouts;
+        
+        dom.prizePoolDisplay.textContent = formatNumber(prizePoolForDisplay);
+
+        const existingOverlay = document.getElementById('overlay-display');
+        if(existingOverlay) existingOverlay.remove();
+
+        if (tournamentState.overlay > 0) {
+            const overlayDiv = document.createElement('div');
+            overlayDiv.id = 'overlay-display';
+            overlayDiv.className = 'text-center mb-2';
+            overlayDiv.innerHTML = `<span class="text-sm text-gray-400">Overlay: </span><span class="text-sm font-semibold text-red-400">${formatNumber(tournamentState.overlay)}</span>`;
+            dom.prizePoolContainer.appendChild(overlayDiv);
+        }
+    
+        const payoutStructure = getPayoutStructure();
+    
+        let finalPayouts = [];
+        if (tournamentState.isDealActive && payoutStructure.length > 0) {
+            const bubblePrize = settings.buyIn;
+            const adjustedPrizePool = prizePoolForCalc - bubblePrize;
+            payoutStructure.forEach(p => finalPayouts.push({ rank: p.rank, amount: Math.floor(adjustedPrizePool * p.percent) }));
+            finalPayouts.push({ rank: payoutStructure.length + 1, amount: bubblePrize });
+        } else {
+            payoutStructure.forEach(p => finalPayouts.push({ rank: p.rank, amount: Math.floor(prizePoolForCalc * p.percent) }));
+        }
+    
+        dom.payoutList.innerHTML = '';
+    
+        const eliminatedPlayers = players.filter(p => p.eliminationOrder > 0);
+        const totalUniquePlayersCount = new Set(players.map(p => p.name)).size;
+        const processedPayouts = []; 
+    
+        if (eliminatedPlayers.length > 0) {
+            const groupedByOrder = eliminatedPlayers.reduce((acc, p) => {
+                acc[p.eliminationOrder] = acc[p.eliminationOrder] || [];
+                acc[p.eliminationOrder].push(p);
+                return acc;
+            }, {});
+    
+            const sortedOrders = Object.keys(groupedByOrder).map(Number).sort((a, b) => a - b);
+            let rankCursor = totalUniquePlayersCount;
+    
+            sortedOrders.forEach(order => {
+                const group = groupedByOrder[order];
+                const ranksForGroup = Array.from({ length: group.length }, (_, i) => rankCursor - i);
+                
+                const prizesToSplit = ranksForGroup
+                    .map(rank => finalPayouts.find(p => p.rank === rank)?.amount || 0)
+                    .filter(amount => amount > 0);
+                
+                if (prizesToSplit.length > 0) {
+                    const totalPrize = prizesToSplit.reduce((sum, amount) => sum + amount, 0);
+                    const splitAmount = Math.floor(totalPrize / group.length);
+                    const rankText = group.length > 1 ? `T-${getOrdinalSuffix(rankCursor)}` : getOrdinalSuffix(rankCursor);
+                    
+                    group.forEach(player => {
+                        processedPayouts.push({
+                            player,
+                            rankText,
+                            amount: splitAmount,
+                            rank: rankCursor 
+                        });
+                    });
+                }
+                rankCursor -= group.length;
+            });
+        }
+    
+        const displayRows = [];
+        const filledRanks = new Set();
+        const resultsInMoney = processedPayouts.filter(p => p.amount > 0);
+    
+        resultsInMoney.forEach(result => {
+            const isAlreadyAdded = displayRows.some(row => row.player.id === result.player.id);
+            if(isAlreadyAdded) return;
+            
+            const group = resultsInMoney.filter(r => r.rankText === result.rankText);
+
+            group.forEach(tiedPlayer => {
+                 displayRows.push({
+                    isPlaceholder: false,
+                    rank: tiedPlayer.rank, 
+                    rankText: tiedPlayer.rankText,
+                    amount: tiedPlayer.amount,
+                    player: tiedPlayer.player
+                });
+                filledRanks.add(tiedPlayer.rank);
+            });
+             
+            const baseRank = parseInt(result.rankText.replace(/T-|\D/g, ''));
+            for (let i = 0; i < group.length; i++) {
+                filledRanks.add(baseRank - i);
+            }
+        });
+    
+        finalPayouts.forEach(payoutSpot => {
+            if (!filledRanks.has(payoutSpot.rank)) {
+                displayRows.push({
+                    isPlaceholder: true,
+                    rank: payoutSpot.rank,
+                    rankText: getOrdinalSuffix(payoutSpot.rank),
+                    amount: payoutSpot.amount,
+                    player: { name: '...' }
+                });
+            }
+        });
+    
+        displayRows.sort((a, b) => a.rank - b.rank);
+    
+        displayRows.forEach(row => {
+            const payoutDiv = document.createElement('div');
+            payoutDiv.className = 'flex justify-between items-center bg-gray-700 p-2 rounded-lg';
+            payoutDiv.innerHTML = `
+                <div class="flex items-center">
+                    <div class="w-14 shrink-0">
+                        <span class="font-bold text-cyan-400">${row.rankText}</span>
+                    </div>
+                    <span class="text-gray-400 text-sm truncate" title="${row.player.name}">
+                        ${row.player.name}
+                    </span>
+                </div>
+                <span class="font-semibold text-yellow-400">${formatNumber(row.amount)}</span>
+            `;
+            dom.payoutList.appendChild(payoutDiv);
+        });
+
+        if (tournamentState.bubbleProtectionWinners.length > 0) {
+             const separator = document.createElement('hr');
+             separator.className = 'my-3 border-gray-600';
+             dom.payoutList.appendChild(separator);
+
+             const header = document.createElement('h3');
+             header.className = 'text-center text-sm text-gray-400 uppercase tracking-wider mb-2';
+             header.textContent = 'Bubble Protection Payout';
+             dom.payoutList.appendChild(header);
+            
+            tournamentState.bubbleProtectionWinners.forEach(payout => {
+                const payoutDiv = document.createElement('div');
+                payoutDiv.className = 'flex justify-between items-center bg-gray-700 p-2 rounded-lg';
+                payoutDiv.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="w-14 shrink-0">
+                            <span class="font-bold text-cyan-400">Bubble</span>
+                        </div>
+                        <span class="text-gray-400 text-sm truncate" title="${payout.name}">
+                            ${payout.name}
+                        </span>
+                    </div>
+                    <span class="font-semibold text-yellow-400">${formatNumber(payout.amount)}</span>
+                `;
+                dom.payoutList.appendChild(payoutDiv);
+            });
+        }
+    };
+    
+    // --- EVENT HANDLERS ---
+    
+    const handleAddPlayer = () => {
+        const name = dom.playerNameInput.value.trim();
+        if (!name) return;
+
+        const isOnTime = dom.onTimeCheckbox.checked;
+        const existingPlayer = players.find(p => p.name.toLowerCase() === name.toLowerCase());
+        
+        if (existingPlayer) {
+             showSimpleAlert('A player with this name already exists.');
+            return;
+        }
+
+        players.push({
+            id: Date.now(),
+            name: name,
+            entries: 1,
+            hasAddOn: false,
+            isOnTime: isOnTime,
+            isEliminated: false,
+            eliminationOrder: 0,
+            hasBubbleProtection: false,
+            wasAwardedBubbleProtection: false,
+        });
+        if (isOnTime) {
+            tournamentState.totalBonusChips += settings.onTimeBonus;
+        }
+        tournamentState.totalEntries++;
+       
+        dom.playerNameInput.value = '';
+        dom.onTimeCheckbox.checked = false; 
+        updateAllUI();
+    };
+
+    const processBusts = (bustedPlayerIds) => {
+        const maxOrder = Math.max(0, ...players.map(p => p.eliminationOrder));
+        const bustOrder = maxOrder + 1;
+
+        bustedPlayerIds.forEach(playerId => {
+            const player = players.find(p => p.id === playerId);
+            if (player) {
+                player.isEliminated = true;
+                player.eliminationOrder = bustOrder;
+                player.hasBubbleProtection = false; 
+            }
+        });
+
+        const payoutStructure = getPayoutStructure();
+        const numPayoutSpots = payoutStructure.length;
+        const activePlayersCount = players.filter(p => !p.isEliminated).length;
+        
+        const lateRegEndsAtLevel = 8;
+        const currentLevelNumber = blindLevels[tournamentState.currentLevelIndex].level;
+        const isLateRegClosed = currentLevelNumber > lateRegEndsAtLevel || (currentLevelNumber === lateRegEndsAtLevel && tournamentState.timeLeftInLevel === 0);
+
+        if (activePlayersCount === numPayoutSpots) { // This is the stone bubble
+            bustedPlayerIds.forEach(playerId => {
+                const bustedPlayer = players.find(p => p.id === playerId);
+                if (bustedPlayer && bustedPlayer.wasAwardedBubbleProtection) {
+                    tournamentState.bubbleProtectionPayouts += settings.buyIn;
+                    tournamentState.bubbleProtectionWinners.push({ name: bustedPlayer.name, amount: settings.buyIn });
+                    showSimpleAlert(`${bustedPlayer.name} is on the bubble and receives their buy-in back!`);
+                }
+            });
+        }
+
+        if (isLateRegClosed && tournamentState.isTournamentStarted && activePlayersCount === numPayoutSpots && numPayoutSpots > 0 && !tournamentState.hasAnnouncedITM) {
+             tournamentState.isITMAnnouncementPending = true;
+        }
+        
+        if (isLateRegClosed && tournamentState.isTournamentStarted && activePlayersCount === (numPayoutSpots + 1) && numPayoutSpots > 0 && !tournamentState.isDealActive && !tournamentState.hasDealBeenOffered) {
+            tournamentState.isBubbleDealPending = true;
+        }
+        
+        if (activePlayersCount <= 1 && players.length > 1) {
+            tournamentState.isWinnerPendingConfirmation = true;
+        } else if (activePlayersCount === 0 && players.length > 0) {
+             handlePauseTimer();
+        }
+        
+        updateAllUI();
+    };
+
+    const handlePlayerAction = (e) => {
+        const target = e.target.closest('.player-btn');
+        if (!target) return;
+
+        const playerId = parseInt(target.dataset.id);
+        const player = players.find(p => p.id === playerId);
+        if (!player) return;
+
+        if (target.classList.contains('more-options-btn')) {
+            document.querySelectorAll('.dropdown-content').forEach(menu => {
+                if(menu.id !== `dropdown-${playerId}`) menu.classList.remove('show');
+            });
+            document.getElementById(`dropdown-${playerId}`).classList.toggle('show');
+            return;
+        }
+
+        if (target.classList.contains('bubble-protection-btn')) {
+            player.hasBubbleProtection = !player.hasBubbleProtection;
+            if (player.hasBubbleProtection) {
+                player.wasAwardedBubbleProtection = true;
+            }
+            renderPlayers();
+            return;
+        }
+
+        if (target.classList.contains('edit-btn')) {
+            openEditPlayerModal(player);
+            return;
+        }
+
+        if (target.classList.contains('re-entry-btn')) {
+            showConfirmation(`Confirm Re-entry for ${player.name}?`, '', () => {
+                player.isEliminated = false;
+                player.eliminationOrder = 0;
+                player.entries++;
+                player.hasBubbleProtection = false; 
+                tournamentState.totalEntries++;
+                tournamentState.reEntries++;
+                updateAllUI();
+            });
+        } else if (target.classList.contains('add-on-btn')) {
+            showConfirmation(`Confirm Add-on for ${player.name}?`, '', () => {
+                player.hasAddOn = true;
+                tournamentState.totalEntries++; 
+                tournamentState.addOns++;
+                updateAllUI();
+            });
+        } else if (target.classList.contains('bust-btn')) {
+            showConfirmation(`Confirm Bust Out for ${player.name}?`, '', () => {
+                processBusts([playerId]);
+            });
+        } else if (target.classList.contains('delete-btn')) {
+             showConfirmation(`Permanently delete ${player.name}? This cannot be undone.`, '', () => {
+                if (player.isOnTime) tournamentState.totalBonusChips -= settings.onTimeBonus;
+                players = players.filter(p => p.id !== playerId);
+                
+                let newTotalEntries = 0, newReEntries = 0, newAddOns = 0;
+                players.forEach(p => {
+                    newTotalEntries += p.entries;
+                    if (p.hasAddOn) newAddOns++;
+                    if (p.entries > 1) newReEntries += (p.entries - 1) - (p.hasAddOn ? 1 : 0);
+                });
+                tournamentState.totalEntries = newTotalEntries;
+                tournamentState.reEntries = newReEntries;
+                tournamentState.addOns = newAddOns;
+
+                updateAllUI();
+            });
+        }
+    };
+
+    const advanceToNextStage = (direction = 1) => {
+        const currentLevelNumber = blindLevels[tournamentState.currentLevelIndex].level;
+
+        if (tournamentState.isBreak) { 
+            tournamentState.isBreak = false;
+            tournamentState.currentLevelIndex += direction > 0 ? 1 : 0; 
+            if (tournamentState.currentLevelIndex >= blindLevels.length) {
+                tournamentState.currentLevelIndex = blindLevels.length - 1;
+            }
+            tournamentState.timeLeftInLevel = settings.levelDuration;
+        } else {
+            const breakInfo = BREAK_LEVELS.find(b => b.level === currentLevelNumber);
+            if (breakInfo && direction > 0) {
+                tournamentState.isBreak = true;
+                tournamentState.timeLeftInLevel = breakInfo.duration;
+            } else { 
+                 const newIndex = tournamentState.currentLevelIndex + direction;
+                 if (newIndex >= 0 && newIndex < blindLevels.length) {
+                    tournamentState.currentLevelIndex = newIndex;
+                    tournamentState.timeLeftInLevel = settings.levelDuration;
+                 }
+            }
+        }
+        playChime();
+        updateAllUI();
+    };
+
+
+    const handleLevelChange = (direction) => {
+        if (direction < 0) { // Going backwards
+            if(tournamentState.isBreak) {
+                tournamentState.isBreak = false;
+                tournamentState.timeLeftInLevel = settings.levelDuration;
+            } else {
+                const newIndex = tournamentState.currentLevelIndex - 1;
+                if (newIndex < 0) return;
+                
+                const prevLevel = blindLevels[newIndex];
+                const breakAfterPrevLevel = BREAK_LEVELS.find(b => b.level === prevLevel.level);
+
+                if (breakAfterPrevLevel) {
+                    tournamentState.isBreak = true;
+                    tournamentState.timeLeftInLevel = breakAfterPrevLevel.duration;
+                    tournamentState.currentLevelIndex = newIndex;
+                } else {
+                    tournamentState.currentLevelIndex = newIndex;
+                    tournamentState.timeLeftInLevel = settings.levelDuration;
+                }
+            }
+        } else { // Going forwards
+             advanceToNextStage(direction);
+        }
+        updateAllUI();
+    };
+
+    const handleTimeAdjustment = (seconds) => {
+        tournamentState.timeLeftInLevel += seconds;
+        if (tournamentState.timeLeftInLevel < 0) tournamentState.timeLeftInLevel = 0;
+        updateAllUI();
+    };
+
+    const handlePauseTimer = () => {
+        tournamentState.isPaused = true;
+        clearInterval(tournamentState.timerInterval);
+        clearInterval(tournamentState.elapsedTimerInterval);
+        tournamentState.elapsedTimerInterval = null;
+        dom.pauseBtn.classList.add('hidden');
+        dom.resumeBtn.classList.remove('hidden');
+        updateTimerVisuals();
+    };
+
+    const handleResumeTimer = () => {
+        if (!tournamentState.isTournamentStarted) {
+            return;
+        }
+
+        if (tournamentState.isPaused) {
+            tournamentState.isPaused = false;
+            dom.resumeBtn.classList.add('hidden');
+            dom.pauseBtn.classList.remove('hidden');
+            
+            tournamentState.timerInterval = setInterval(() => {
+                if (tournamentState.timeLeftInLevel > 0) {
+                    tournamentState.timeLeftInLevel--;
+                    renderTimer();
+                    updateTimerVisuals();
+                } else {
+                    advanceToNextStage(1);
+                }
+            }, 1000);
+
+            if (!tournamentState.elapsedTimerInterval) {
+                tournamentState.elapsedTimerInterval = setInterval(() => {
+                    tournamentState.totalElapsedTime++;
+                    renderStats();
+                }, 1000);
+            }
+        }
+        updateTimerVisuals();
+    };
+    
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => alert(`Error: ${err.message}`));
+        } else if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    };
+    
+    const updateFullscreenState = () => {
+        const isFullscreen = !!document.fullscreenElement;
+        dom.mainContainer.classList.toggle('is-fullscreen', isFullscreen);
+        dom.fullscreenOpenIcon.classList.toggle('hidden', isFullscreen);
+        dom.fullscreenCloseIcon.classList.toggle('hidden', !isFullscreen);
+    };
+
+    // --- MODAL CONTROLS ---
+    const showSimpleAlert = (message) => {
+        dom.simpleAlertMessage.textContent = message;
+        dom.simpleAlertModal.classList.remove('hidden');
+    };
+
+    const openSettingsModal = () => {
+        tournamentState.wasPausedBeforeModal = !tournamentState.isPaused;
+        if(tournamentState.wasPausedBeforeModal) handlePauseTimer();
+        dom.gtdInput.value = settings.gtd;
+        dom.settingsModal.classList.remove('hidden');
+    };
+    const closeSettingsModal = () => {
+        dom.settingsModal.classList.add('hidden');
+        if(tournamentState.wasPausedBeforeModal) handleResumeTimer();
+    };
+    const openPlayerModal = () => {
+        tournamentState.wasPausedBeforeModal = !tournamentState.isPaused;
+        if(tournamentState.wasPausedBeforeModal) handlePauseTimer();
+        dom.playerModal.classList.remove('hidden');
+    };
+    const closePlayerModal = () => {
+        if(tournamentState.isMultiBustMode) exitMultiBustMode();
+        dom.playerModal.classList.add('hidden');
+        
+        if (tournamentState.isWinnerPendingConfirmation) {
+            tournamentState.isWinnerPendingConfirmation = false;
+            showWinnerConfirmation();
+        } else if (tournamentState.isITMAnnouncementPending) {
+             tournamentState.isITMAnnouncementPending = false;
+             tournamentState.hasAnnouncedITM = true;
+             dom.itmModal.classList.remove('hidden');
+             setTimeout(() => {
+                dom.itmModal.classList.add('hidden');
+             }, 10000);
+        } else if (tournamentState.isBubbleDealPending) {
+            tournamentState.isBubbleDealPending = false;
+            dom.bubbleTimeModal.classList.remove('hidden');
+            setTimeout(() => {
+                dom.bubbleTimeModal.classList.add('hidden');
+                const prizePool = Math.floor((tournamentState.totalEntries * settings.buyIn) * (1 - settings.fee / 100));
+                const payoutStructure = getPayoutStructure();
+                showDealConfirmation(payoutStructure, prizePool);
+            }, 2000);
+        }
+
+        if(tournamentState.wasPausedBeforeModal) handleResumeTimer();
+    };
+    
+    const showConfirmation = (message, details, onConfirm, onCancel = null, onClose = null) => {
+        dom.confirmationMessage.innerHTML = message;
+        dom.confirmationDetails.innerHTML = details;
+        dom.confirmationModal.classList.remove('hidden');
+        
+        const newConfirmBtn = dom.confirmBtn.cloneNode(true);
+        dom.confirmBtn.parentNode.replaceChild(newConfirmBtn, dom.confirmBtn);
+        dom.confirmBtn = newConfirmBtn;
+        
+        const newCancelBtn = dom.cancelBtn.cloneNode(true);
+        dom.cancelBtn.parentNode.replaceChild(newCancelBtn, dom.cancelBtn);
+        dom.cancelBtn = newCancelBtn;
+
+        if (message === 'Is the tournament finished?') {
+            dom.confirmBtn.textContent = 'Yes';
+            dom.cancelBtn.textContent = 'No';
+        } else {
+            dom.confirmBtn.textContent = 'Confirm';
+            dom.cancelBtn.textContent = 'Cancel';
+        }
+
+        const hideConfirmation = () => {
+            dom.confirmationModal.classList.add('hidden');
+            if(onClose) onClose();
+        };
+        
+        dom.confirmBtn.addEventListener('click', () => { onConfirm(); hideConfirmation(); }, { once: true });
+        dom.cancelBtn.addEventListener('click', () => { if (onCancel) onCancel(); hideConfirmation(); }, { once: true });
+    };
+
+    const openEditPlayerModal = (player) => {
+        tournamentState.editingPlayerId = player.id;
+        dom.editPlayerNameInput.value = player.name;
+        dom.editPlayerModal.classList.remove('hidden');
+        dom.editPlayerNameInput.focus();
+    };
+
+    const closeEditPlayerModal = () => {
+        dom.editPlayerModal.classList.add('hidden');
+        tournamentState.editingPlayerId = null;
+    };
+
+    const savePlayerName = () => {
+        const newName = dom.editPlayerNameInput.value.trim();
+        if (newName && tournamentState.editingPlayerId) {
+            const player = players.find(p => p.id === tournamentState.editingPlayerId);
+            if (player) {
+                player.name = newName;
+            }
+            closeEditPlayerModal();
+            updateAllUI();
+        }
+    };
+
+    const showWinnerConfirmation = () => {
+        showConfirmation('Is the tournament finished?', '',
+            () => { // onConfirm (Yes)
+                const winner = players.find(p => !p.isEliminated);
+                if (winner) {
+                    const maxOrder = Math.max(0, ...players.map(p => p.eliminationOrder));
+                    winner.eliminationOrder = maxOrder + 1;
+                    winner.isEliminated = true;
+                    
+                    dom.winnerMessage.textContent = `Congratulations, ${winner.name}! 🏆`;
+                    dom.winnerModal.classList.remove('hidden');
+                    setTimeout(() => dom.winnerModal.classList.add('hidden'), 300000);
+                }
+                handlePauseTimer();
+                updateAllUI();
+            },
+            () => { // onCancel (No)
+                // Do nothing
+            }
+        );
+    }
+
+    const showDealConfirmation = (payoutStructure, prizePool) => {
+        tournamentState.hasDealBeenOffered = true;
+        const wasTimerRunning = !tournamentState.isPaused;
+        if(wasTimerRunning) handlePauseTimer();
+
+        const bubblePrize = settings.buyIn;
+        const adjustedPrizePool = prizePool - bubblePrize;
+        
+        let detailsHtml = `<div class="space-y-2 text-sm">
+            <div class="grid grid-cols-4 gap-2 font-bold text-gray-300 border-b border-gray-600 pb-1">
+                <span>Rank</span><span class="text-right">Original</span><span class="text-right">New</span><span class="text-right text-red-400">Diff.</span>
+            </div>`;
+
+        payoutStructure.forEach(p => {
+            const originalAmount = Math.floor(prizePool * p.percent);
+            const newAmount = Math.floor(adjustedPrizePool * p.percent);
+            const difference = originalAmount - newAmount;
+            const percentageLoss = originalAmount > 0 ? ((difference / originalAmount) * 100).toFixed(1) : 0;
+            detailsHtml += `<div class="grid grid-cols-4 gap-2">
+                    <span class="font-bold text-cyan-400">${getOrdinalSuffix(p.rank)}</span>
+                    <span class="text-right">${formatNumber(originalAmount)}</span>
+                    <span class="text-right text-green-400">${formatNumber(newAmount)}</span>
+                    <span class="text-right text-red-400">-${formatNumber(difference)} (${percentageLoss}%)</span>
+                </div>`;
+        });
+        
+        const bubbleRank = payoutStructure.length + 1;
+        detailsHtml += `<div class="grid grid-cols-4 gap-2 border-t border-gray-600 pt-2 mt-2">
+                <span class="font-bold text-cyan-400">${getOrdinalSuffix(bubbleRank)}</span>
+                <span class="text-right">0</span>
+                <span class="text-right text-green-400">${formatNumber(bubblePrize)}</span>
+                <span class="text-right text-green-400">+${formatNumber(bubblePrize)}</span>
+            </div></div>`;
+
+        showConfirmation('Confirm Bubble Deal?', detailsHtml, 
+            () => { 
+                tournamentState.isDealActive = true; 
+                if (!tournamentState.hasAnnouncedITM) {
+                    tournamentState.hasAnnouncedITM = true;
+                    dom.itmModal.classList.remove('hidden');
+                    setTimeout(() => {
+                        dom.itmModal.classList.add('hidden');
+                    }, 10000);
+                }
+            },
+            null,
+            () => { if(wasTimerRunning) handleResumeTimer(); updateAllUI(); }
+        );
+    };
+
+    const saveSettings = () => {
+        settings.buyIn = parseInt(dom.buyInInput.value) || 400;
+        settings.fee = parseInt(dom.feeInput.value) || 10;
+        settings.startingStack = parseInt(dom.startingStackInput.value) || 20000;
+        settings.onTimeBonus = parseInt(dom.onTimeBonusInput.value) || 2000;
+        settings.gtd = parseInt(dom.gtdInput.value) || 0;
+        
+        const defaultStartingStack = 20000;
+        if (dom.onTimeBonusInput.valueAsNumber === (defaultStartingStack * 0.1)) {
+             settings.onTimeBonus = Math.round(settings.startingStack * 0.1);
+             dom.onTimeBonusInput.value = settings.onTimeBonus;
+        }
+
+        tournamentState.timeLeftInLevel = settings.levelDuration;
+        closeSettingsModal();
+        updateAllUI();
+    };
+
+    const enterMultiBustMode = () => {
+        tournamentState.isMultiBustMode = true;
+        tournamentState.multiBustSelection = [];
+        dom.playerAddControls.classList.add('hidden');
+        dom.multiBustControls.classList.remove('hidden');
+        renderPlayers();
+    };
+
+    const exitMultiBustMode = () => {
+        tournamentState.isMultiBustMode = false;
+        tournamentState.multiBustSelection = [];
+        dom.playerAddControls.classList.remove('hidden');
+        dom.multiBustControls.classList.add('hidden');
+        renderPlayers();
+    };
+
+    const confirmMultiBust = () => {
+        const selectionCount = tournamentState.multiBustSelection.length;
+        if (selectionCount < 2) {
+            showSimpleAlert('Please select 2 or more players for a multiple bust.');
+            return;
+        }
+
+        const playerNames = tournamentState.multiBustSelection.map(id => players.find(p => p.id === id).name).join(', ');
+        showConfirmation(`Confirm bust out for ${selectionCount} players?`, `<p class="text-sm text-gray-300">${playerNames}</p>`, () => {
+            processBusts(tournamentState.multiBustSelection);
+            exitMultiBustMode();
+        });
+    };
+
+    const startCountdown = async () => {
+        initAudio();
+        dom.startBtn.disabled = true;
+        const originalText = dom.timerDisplay.textContent;
+
+        dom.timerDisplay.textContent = '3';
+        playBeep();
+        await new Promise(res => setTimeout(res, 1000));
+
+        dom.timerDisplay.textContent = '2';
+        playBeep();
+        await new Promise(res => setTimeout(res, 1000));
+        
+        dom.timerDisplay.textContent = '1';
+        playBeep();
+        await new Promise(res => setTimeout(res, 1000));
+        
+        dom.timerDisplay.textContent = originalText;
+        playChime();
+
+        dom.startBtn.classList.add('hidden');
+        dom.runningControls.classList.remove('hidden');
+        dom.runningControls.style.display = 'flex';
+        tournamentState.isTournamentStarted = true;
+        handleResumeTimer();
+        dom.startBtn.disabled = false;
+    };
+
+    const toggleMute = () => {
+        tournamentState.isMuted = !tournamentState.isMuted;
+        localStorage.setItem('pokerTournamentMuted', tournamentState.isMuted);
+        updateMuteButton();
+    };
+
+    const updateMuteButton = () => {
+        if (tournamentState.isMuted) {
+            dom.volumeOnIcon.classList.add('hidden');
+            dom.volumeOffIcon.classList.remove('hidden');
+        } else {
+            dom.volumeOnIcon.classList.remove('hidden');
+            dom.volumeOffIcon.classList.add('hidden');
+        }
+    };
+    
+    // --- RANDOM SEAT FUNCTIONS ---
+    const startShuffleAnimation = () => {
+        initAudio();
+        const activePlayers = players.filter(p => !p.isEliminated);
+        if (activePlayers.length === 0) return;
+
+        // Clear any previous animations
+        if (tournamentState.shuffleAnimationInterval) {
+            clearInterval(tournamentState.shuffleAnimationInterval);
+        }
+        
+        dom.reshuffleSeatsBtn.disabled = true;
+        dom.seatAssignmentList.innerHTML = '';
+        dom.seatAssignmentPlayerCount.textContent = `Total Players: ${activePlayers.length}`;
+
+        // Create placeholder elements for animation
+        for (let i = 0; i < activePlayers.length; i++) {
+            const seatDiv = document.createElement('div');
+            seatDiv.className = 'shuffling-item';
+            seatDiv.innerHTML = `Seat <span class="tabular-nums-text">${String(i + 1).padStart(2, ' ')}</span>: <span class="player-name-placeholder">...</span>`;
+            dom.seatAssignmentList.appendChild(seatDiv);
+        }
+        const placeholders = dom.seatAssignmentList.querySelectorAll('.player-name-placeholder');
+
+        let duration = 5000;
+        let elapsed = 0;
+        let shuffleSpeed = 50;
+        const soundInterval = 100;
+        let lastSoundTime = 0;
+
+        const countdownInterval = setInterval(() => {
+            const secondsLeft = Math.ceil((duration - elapsed) / 1000);
+            dom.shuffleProgress.textContent = `Shuffling... ${secondsLeft}s`;
+        }, 1000);
+        dom.shuffleProgress.textContent = `Shuffling... 5s`;
+
+        const animationLoop = () => {
+            elapsed += shuffleSpeed;
+
+            // Animate names
+            placeholders.forEach(p => {
+                const randomPlayer = activePlayers[Math.floor(Math.random() * activePlayers.length)];
+                p.textContent = randomPlayer.name;
+            });
+
+            // Play sound
+            if (elapsed - lastSoundTime > soundInterval) {
+                playShuffleSound();
+                lastSoundTime = elapsed;
+            }
+
+            // Adjust speed
+            if (elapsed > 4000 && elapsed < 4500) { // 4s - 4.5s
+                shuffleSpeed = 150;
+            } else if (elapsed >= 4500) { // 4.5s - 5s
+                shuffleSpeed = 300;
+            }
+
+            if (elapsed < duration) {
+                setTimeout(animationLoop, shuffleSpeed);
+            } else {
+                // Animation finished, show final result
+                clearInterval(countdownInterval);
+                dom.shuffleProgress.textContent = '';
+                renderFinalSeats(activePlayers);
+            }
+        };
+
+        animationLoop();
+    };
+
+    const renderFinalSeats = (activePlayers) => {
+        const shuffledPlayers = shuffleArray([...activePlayers]);
+        const buttonPosition = Math.floor(Math.random() * shuffledPlayers.length);
+
+        dom.seatAssignmentList.innerHTML = ''; // Clear animation placeholders
+
+        shuffledPlayers.forEach((player, index) => {
+            const isButton = index === buttonPosition;
+            const seatNumber = index + 1;
+            const playerName = player.name;
+            const btnText = isButton ? ' (BTN)' : '';
+            const highlightClass = isButton ? 'btn-highlight' : '';
+            
+            const seatDiv = document.createElement('div');
+            seatDiv.className = `final-seat ${highlightClass}`;
+            seatDiv.style.animationDelay = `${index * 50}ms`; // Staggered fade-in
+            seatDiv.innerHTML = `Seat <span class="tabular-nums-text">${String(seatNumber).padStart(2, ' ')}</span>: ${playerName}${btnText}`;
+            dom.seatAssignmentList.appendChild(seatDiv);
+        });
+
+        dom.reshuffleSeatsBtn.disabled = false;
+    };
+
+
+    const openRandomSeatModal = () => {
+        dom.randomSeatModal.classList.remove('hidden');
+        startShuffleAnimation();
+    };
+
+    const closeRandomSeatModal = () => {
+        // Stop any running animations
+        if (tournamentState.shuffleAnimationInterval) {
+            clearInterval(tournamentState.shuffleAnimationInterval);
+        }
+        dom.shuffleProgress.textContent = '';
+        dom.reshuffleSeatsBtn.disabled = false;
+        dom.randomSeatModal.classList.add('hidden');
+    };
+
+    // --- INITIALIZATION ---
+    const initializeApp = () => {
+        const savedMuteState = localStorage.getItem('pokerTournamentMuted');
+        if (savedMuteState !== null) {
+            tournamentState.isMuted = savedMuteState === 'true';
+        }
+        updateMuteButton();
+        
+        dom.addPlayerBtn.addEventListener('click', handleAddPlayer);
+        dom.playerNameInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') handleAddPlayer();
+        });
+        
+        dom.playerList.addEventListener('click', handlePlayerAction);
+        
+        window.addEventListener('click', (event) => {
+            if (!event.target.matches('.more-options-btn') && !event.target.closest('.more-options-btn')) {
+                document.querySelectorAll('.dropdown-content').forEach(menu => menu.classList.remove('show'));
+            }
+        });
+
+        dom.playerList.addEventListener('change', (e) => {
+            if (e.target.classList.contains('multi-bust-checkbox')) {
+                const playerId = parseInt(e.target.dataset.id);
+                if (e.target.checked) {
+                    tournamentState.multiBustSelection.push(playerId);
+                } else {
+                    tournamentState.multiBustSelection = tournamentState.multiBustSelection.filter(id => id !== playerId);
+                }
+            }
+        });
+        dom.startBtn.addEventListener('click', () => {
+            if (players.length === 0) {
+                showSimpleAlert('Please add at least one player to start the tournament.');
+                return;
+            }
+            startCountdown();
+        });
+        dom.nextLevelBtn.addEventListener('click', () => showConfirmation('Advance to the next stage?', '', () => advanceToNextStage(1)));
+        dom.prevLevelBtn.addEventListener('click', () => showConfirmation('Go back to the previous stage?', '', () => handleLevelChange(-1)));
+        dom.forwardBtn.addEventListener('click', () => handleTimeAdjustment(60));
+        dom.rewindBtn.addEventListener('click', () => handleTimeAdjustment(-60));
+        dom.pauseBtn.addEventListener('click', handlePauseTimer);
+        dom.resumeBtn.addEventListener('click', handleResumeTimer);
+
+        dom.settingsToggleBtn.addEventListener('click', openSettingsModal);
+        dom.settingsSaveBtn.addEventListener('click', saveSettings);
+        dom.settingsCancelBtn.addEventListener('click', closeSettingsModal);
+        
+        dom.playerToggleBtn.addEventListener('click', openPlayerModal);
+        dom.playerModalCloseBtn.addEventListener('click', closePlayerModal);
+        
+        dom.multiBustBtn.addEventListener('click', enterMultiBustMode);
+        dom.multiBustCancelBtn.addEventListener('click', exitMultiBustMode);
+        dom.multiBustConfirmBtn.addEventListener('click', confirmMultiBust);
+
+        dom.editPlayerSaveBtn.addEventListener('click', savePlayerName);
+        dom.editPlayerCancelBtn.addEventListener('click', closeEditPlayerModal);
+        dom.editPlayerNameInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') savePlayerName();
+        });
+        
+        dom.fullscreenBtn.addEventListener('click', toggleFullscreen);
+        document.addEventListener('fullscreenchange', updateFullscreenState);
+        
+        dom.simpleAlertOkBtn.addEventListener('click', () => dom.simpleAlertModal.classList.add('hidden'));
+        dom.winnerModalCloseBtn.addEventListener('click', () => dom.winnerModal.classList.add('hidden'));
+
+        dom.muteBtn.addEventListener('click', toggleMute);
+
+        // Random Seat Listeners
+        dom.randomSeatBtn.addEventListener('click', openRandomSeatModal);
+        dom.randomSeatModalCloseBtn.addEventListener('click', closeRandomSeatModal);
+        dom.reshuffleSeatsBtn.addEventListener('click', startShuffleAnimation);
+
+
+        // Initial Render
+        updateAllUI();
+    };
+
+    initializeApp();
+});
+</script>
+</body>
+</html>
+
